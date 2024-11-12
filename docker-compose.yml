@@ -1,0 +1,169 @@
+version: '3.8'
+
+services:
+  # Frontend service
+  webapp:
+    image: your-webapp-image
+    ports:
+      - "3000:3000"
+    environment:
+      - API_GATEWAY_URL=http://api-gateway:8080
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "512M"
+    networks:
+      - app-network
+
+  # API Gateway
+  api-gateway:
+    image: your-api-gateway-image
+    ports:
+      - "8080:8080"
+    environment:
+      - USER_SERVICE_URL=http://user-service:5000
+      - CONTENT_SERVICE_URL=http://content-service:5001
+      - VOTE_SERVICE_URL=http://vote-service:5002
+      - NOTIFICATION_SERVICE_URL=http://notification-service:5003
+      - SEARCH_SERVICE_URL=http://search-service:9200
+    deploy:
+      replicas: 2
+    networks:
+      - app-network
+
+  # User Service
+  user-service:
+    image: your-user-service-image
+    environment:
+      - DATABASE_URL=postgres://postgres:password@postgres:5432/userdb
+      - REDIS_URL=redis://redis:6379
+    deploy:
+      replicas: 2
+    networks:
+      - app-network
+
+  # Content Service
+  content-service:
+    image: your-content-service-image
+    environment:
+      - MONGO_URL=mongodb://mongodb:27017/contentdb
+    deploy:
+      replicas: 2
+    networks:
+      - app-network
+
+  # Vote Service
+  vote-service:
+    image: your-vote-service-image
+    deploy:
+      replicas: 2
+    networks:
+      - app-network
+
+  # Notification Service
+  notification-service:
+    image: your-notification-service-image
+    environment:
+      - KAFKA_BROKER=kafka:9092
+    deploy:
+      replicas: 1
+    networks:
+      - app-network
+
+  # Search Service
+  search-service:
+    image: elasticsearch:7.10.1
+    environment:
+      - discovery.type=single-node
+    deploy:
+      replicas: 1
+    networks:
+      - app-network
+
+  # Redis for caching
+  redis:
+    image: redis:latest
+    deploy:
+      replicas: 1
+    networks:
+      - app-network
+
+  # PostgreSQL for user data
+  postgres:
+    image: postgres:13
+    environment:
+      - POSTGRES_DB=userdb
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    deploy:
+      replicas: 1
+    networks:
+      - app-network
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  # MongoDB for flexible content storage
+  mongodb:
+    image: mongo:4.4
+    deploy:
+      replicas: 1
+    networks:
+      - app-network
+    volumes:
+      - mongo-data:/data/db
+
+  # Kafka for real-time event streaming
+  zookeeper:
+    image: wurstmeister/zookeeper:3.4.6
+    deploy:
+      replicas: 1
+    networks:
+      - app-network
+
+  kafka:
+    image: wurstmeister/kafka:2.12-2.6.0
+    environment:
+      - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
+    deploy:
+      replicas: 1
+    networks:
+      - app-network
+
+  # Monitoring - Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    deploy:
+      replicas: 1
+    networks:
+      - app-network
+    configs:
+      - source: prometheus-config
+        target: /etc/prometheus/prometheus.yml
+
+  # Monitoring - Grafana
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    deploy:
+      replicas: 1
+    networks:
+      - app-network
+    volumes:
+      - grafana-data:/var/lib/grafana
+
+networks:
+  app-network:
+    driver: overlay
+
+volumes:
+  postgres-data:
+  mongo-data:
+  grafana-data:
+
+configs:
+  prometheus-config:
+    file: ./prometheus.yml
